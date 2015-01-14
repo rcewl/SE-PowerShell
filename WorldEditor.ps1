@@ -95,72 +95,12 @@
 
 Param(
     # I've changed how this works. Now you just need to point it to your entire save folder. It is assumed that all your .vx2, .sbc and .sbs files are in here
-    [string]$saveLocation = "$env:APPDATA\SpaceEngineersDedicated\Saves\Map",
-    [string]$origLocation = "$env:APPDATA\SpaceEngineersDedicated\Backups\Map\"
+    [string]$saveLocation = "$env:APPDATA\SpaceEngineersDedicated\Saves\Gypsy Space Migration",
+    [string]$origLocation = "$env:APPDATA\SpaceEngineersDedicated\Backups\Gypsy Space Migration",
+    [string]$Spawnbeaconname = "README: Read rules on website and look for Astroid map on forum:: WWW.GYPSY.NO :: rename your beacon to "+'"pos:"'+" to get coordinates, Don't be a dick!! Gl hf"
 )
 
 	
-
-function removeNoPower {  #rework in progress - best not to use for now
-$Objects = $ObjectsDeleted = $totalpiston = $totalwheels = 0 #Set and Clear Variables
-$nodes = $mapXML.SelectNodes("//SectorObjects/MyObjectBuilder_EntityBase[(@xsi:type='MyObjectBuilder_CubeGrid')]" , $ns)
-    ForEach($node in $nodes){
-        Write-Output "`n"
-        $Objects += 1
-        $totalpower = [float]0 #Set and Clear Variables      
-        Write-Output "Checking grid $($node.EntityId)"
-        $ReactorCount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_Reactor']" , $ns).count
-        IF ($ReactorCount -ne 0) {
-            # there are reactors on the grid, lets check if they are functional and have feul to burn
-            $Reactors = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[(@xsi:type='MyObjectBuilder_Reactor')]" , $ns)
-            ForEach ($Reactor in $Reactors){
-                $Reactorinventory = [float]$Reactor.inventory.items.MyObjectBuilder_InventoryItem.amount
-                $ReactorIntegrity = [float]$Reactor.IntegrityPercent
-                    IF ($Reactorinventory -ne $null -Or ($ReactorIntegrity -ne $null -and $ReactorIntegrity -gt 0.75)){
-                    $totalpower += $Reactorinventory
-                    } #if reactor is fully build and has uranium it will count as a powersource
-                    Else { Write-Output "Reactor Inventory = $Reactorinventory, Integrity = $ReactorIntegrity"}
-            } # reactors have been checked.
-        }
-        #Write-Output "  Powerpotential @ $totalpower "
-        $BatteryCount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_BatteryBlock']", $ns).count
-        IF ($BatteryCount -ne 0 <#-and $totalpower -eq 0#>) {
-            $Batterys = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[(@xsi:type='MyObjectBuilder_BatteryBlock')]" , $ns)
-            # we have found batteries and grid has no working reactors. lets see if the batteries have some juice
-            ForEach ($Battery in $Batterys){
-                $BatteryJuice = [float]$Battery.CurrentStoredPower
-                $BatteryIntegrity = [float]$Battery.IntegrityPercent
-                IF ($BatteryJuice -ne $null -Or ($BatteryIntegrity -ne $null -and $BatteryIntegrity -gt 0.565)) #-and $BatteryJuice -ne 0)
-                    {$totalpower += [float]$Battery.CurrentStoredPower
-                    }#if battery is fully build and has juice it will count as a powersource
-                    Else { Write-Output " Battery juice = $BatteryJuice, Integrity = $ReactorIntegrity"}
-                }  
-        }
-        Write-Output "  Powerpotential @ $totalpower "
-        Write-Output "  grid $($node.EntityId) has $ReactorCount reactors and $BatteryCount batteries"                
-        IF ($totalpower -eq 0) {
-            #$rotorcount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_MotorRotor']", $ns).count
-            $pistoncount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_PistonTop']", $ns).count
-            $wheelcount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_Wheel']", $ns).count
-            $ignoretotal = $pistoncount + $wheelcount
-            $totalwheels += $wheelcount
-            $totalpistons += $pistoncount
-            IF($ignoretotal -eq 0){
-                Write-Output " WIPING $($node.EntityId) !!."
-                Write-Output " it had $pistoncount Pistons or $wheelcount wheels"
-                $node.ParentNode.removeChild($node)
-                $ObjectsDeleted += 1
-                }
-            Else {Write-Output " Object not deleted, it had $pistoncount Pistons or $wheelcount wheels"}            
-        }
-    }# foreach grid
-Write-Output "`n"
-Write-Output "There where $Objects checked and $ObjectsDeleted where deleted!!`n"
-Write-Output "There where $totalpistons pitsons and $totalwheels wheels in the save`n"
-} #end function removeNoPower
-
-
-
 function wipe {
     $desc = $args[0]; $confirm = $args[1]; $wiped = 0 #Set and Clear Variables
     if ($desc -eq $null) {
@@ -386,8 +326,104 @@ function removeJunk {
 
 }
 
+
+function RemoveNoPower() {
+  
+$Objects = $ObjectsDeleted = $totalpiston = $totalwheels = 0 #Set and Clear Variables 
+$nodes = $mapXML.SelectNodes("//SectorObjects/MyObjectBuilder_EntityBase[(@xsi:type='MyObjectBuilder_CubeGrid')]" , $mapNS)
+    ForEach($node in $nodes){
+        #Write-Output "`n"
+        $Objects += 1
+        $totalpower = [float]0 #Set and Clear Variables       
+       # Write-Output "checking grid $($node.EntityId)"
+        $ReactorCount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_Reactor']" , $mapNS).count
+        IF ($ReactorCount -ne 0) {
+            # there are reactors on the grid, lets check if they are functional and have feul to burn
+            $Reactors = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[(@xsi:type='MyObjectBuilder_Reactor')]" , $mapNS)
+            ForEach ($Reactor in $Reactors){
+                $Reactorinventory = [float]$Reactor.inventory.items.MyObjectBuilder_InventoryItem.amount
+                $ReactorIntergrity = [float]$Reactor.IntegrityPercent
+                    IF ($Reactorinventory -ne $null -Or ($ReactorIntergrity -ne $null -and $ReactorIntergrity -gt 0.75)){ 
+                    $totalpower += $Reactorinventory
+                    } #if reactor is fully build and has uranium it will count as a powersource
+                    # Else { Write-Output "Reactor inv = $Reactorinventory, intergri = $ReactorIntergrity. $desc"}
+            } # reactors have been checked.
+        }
+                #Write-Output "  Powerpotential @ $totalpower "
+        $BatteryCount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_BatteryBlock']", $mapNS).count
+        IF ($BatteryCount -ne 0 <#-and $totalpower -eq 0#>) {
+            $Batterys = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[(@xsi:type='MyObjectBuilder_BatteryBlock')]" , $mapNS)
+            # we have found batteries and grid has no working reactors. lets see if the batteries have some juice
+            ForEach ($Battery in $Batterys){
+                $BatteryJuice = [float]$Battery.CurrentStoredPower
+                $BatteryIntergrity = [float]$Battery.IntegrityPercent
+                IF ($BatteryJuice -ne $null -Or ($BatteryIntergrity -ne $null -and $BatteryIntergrity -gt 0.565)) #-and $BatteryJuice -ne 0)
+                    {$totalpower += [float]$Battery.CurrentStoredPower
+                    }#if battery is fully build and has juice it will count as a powersource
+                   # Else { Write-Output " Battery juice = $BatteryJuice, intergri = $ReactorIntergrity. $desc"}
+                }  
+        }
+       # Write-Output "  Powerpotential @ $totalpower "
+       # Write-Output "  grid $($node.EntityId) has $ReactorCount reactors and $BatteryCount batteries"                
+        IF ($totalpower -eq 0) {
+            $rotorcount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_MotorRotor']", $mapNS).count
+            $pistoncount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_PistonTop']", $mapNS).count
+            $wheelcount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_Wheel']", $mapNS).count
+            $ignoretotal = $pistoncount + $wheelcount + $rotorcount
+           # $totalwheels += $wheelcount
+           # $totalpistons += $pistoncount
+           # $totalrotor += $rotorcount  
+            IF($ignoretotal -eq 0){
+              #  Write-Output " WIPING $($node.EntityId) !!."
+               # Write-Output " it had $pistoncount Pistons or $wheelcount wheels"
+                $node.ParentNode.removeChild($node) | out-null 
+                $ObjectsDeleted += 1
+                } 
+           # Else {Write-Output " Object not deleted, it had $pistoncount Pistons or $wheelcount wheels"}            
+        }
+    }# foreach grid
+Write-Output "`n"
+Write-Output "There where $Objects Grids checked and $ObjectsDeleted where deleted, no power found.`n"
+# Write-Output "There where $totalpistons pitsons and $totalwheels wheels in the save`n"
+} #end function removeNoPower
+
+
+function removeSpawnships() {
+   # Write-Output "checking for beacons named: $Spawnbeaconname"
+    $nodes = $mapXML.SelectNodes("//SectorObjects/MyObjectBuilder_EntityBase[(@xsi:type='MyObjectBuilder_CubeGrid')]" , $mapNS)
+    $deleted = 0
+    ForEach($node in $nodes){
+        $Beaconcount = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[@xsi:type='MyObjectBuilder_Beacon']" , $mapNS).count
+        IF($Beaconcount -eq 1){
+            $beacon = $node.SelectNodes("CubeBlocks/MyObjectBuilder_CubeBlock[(@xsi:type='MyObjectBuilder_Beacon')]" , $mapNS)
+            [string]$beaconname = $beacon.CustomName
+            IF($beaconname -eq $Spawnbeaconname){
+                $deleted += 1
+                $node.ParentNode.RemoveChild($node) | out-null     
+            }
+        }        
+    }
+    Write-Output "Removed $deleted spawnships with starting beacon.`n"
+} #end function
+
+function FreeRepair() {
+    $nodes = $mapXML.SelectNodes("//SectorObjects/MyObjectBuilder_EntityBase[(@xsi:type='MyObjectBuilder_CubeGrid')]" , $mapNS)
+    $TotalBonesInfile = 0
+    ForEach($node in $nodes){
+        $countBones = 0
+        $BoneInfos = $node.SelectNodes("Skeleton/BoneInfo" , $mapNS)
+        ForEach($BoneInfo in $BoneInfos){
+            $countBones += 1
+            $TotalBonesInfile += 1
+            $BoneInfo.ParentNode.RemoveChild($BoneInfo)  | out-null  
+        }
+        #write-Output "CubegridID $($node.EntityId) has $countBones bones`n "
+    }
+    write-Output "savefile has $TotalBonesInfile bones`n "
+}
+
 function saveIt {
-    $saveFile = "$saveLocation\SANDBOX_0_0_0_.sbs"
+    $saveFile = "$saveLocation\SANDBOX_0_0_0_.xml"
     $mapXML.Save($saveFile)
 }
 
@@ -413,18 +449,24 @@ if ([xml]$mapXML = Get-Content $saveLocation\SANDBOX_0_0_0_.sbs) {
 
 #I've left this section in as it lists most of the current block types
 
+FreeRepair
+
+removeFloaters $true
+
+#removeSpawnships
+
 # -=Lights=-
-#turn off ReflectorLight
-#turn On InteriorLight
+turn off ReflectorLight
+turn off InteriorLight
 
 # -=Drills + Welders=-
-#turn off Drill
-#turn off ShipWelder
-#turn off ShipGrinder
+turn off Drill
+turn off ShipWelder
+turn off ShipGrinder
 
 
 # -=Pistons and Rotors=-
-#turn off MotorStator
+turn off MotorStator
 #turn off PistonBase
 
 # -=Merge Blocks/Connectors=-
@@ -440,42 +482,53 @@ if ([xml]$mapXML = Get-Content $saveLocation\SANDBOX_0_0_0_.sbs) {
 #turn off Decoy
 
 # -=Factories=-
-#turn off Assembler
-#turn off Refinery
+turn off Assembler
+turn off Refinery
 
 # -=Transmitters=-
 #turn off Beacon
 #turn off RadioAntenna
 
 # -=Power=-
-#turn off Reactor
+turn on Reactor
 #turn off BatteryBlock
 #turn off SolarPanel
 #turn on Door
 
 # -=Other Station Blocks=-
-#turn off GravityGenerator
-#turn off GravityGeneratorSphere
+turn off GravityGenerator
+turn off GravityGeneratorSphere
 #turn off MedicalRoom
-#turn off CameraBlock
-#turn off SensorBlock
+turn off CameraBlock
+turn off SensorBlock
 
 # -=Ship things=-
-#turn off OreDetector
-#turn off Gyro
+turn off OreDetector
+turn off Gyro
+
 #turn off LandingGear
+turn off Thrust
+turn off MotorSuspension
+turn off VirtualMass
 #turn off Thrust
-#turn off MotorSuspension
-#turn off VirtualMass
-#turn off Thrust
+
+turn off Projector
+
+RemoveNoPower
 
 #Check the top section for more function Examples
 
-#removeFloaters $true
-#refreshRoids 500
+#wipe MotorRotor $true
+#wipe MotorStator $true
+
+#Checking max limits
+checkMaxAllowed Drill 37
+checkMaxAllowed Projector 0
+
+wipe Projector $true
 
 #Commit changes, uncomment this if you want changes to be saved when the script is run
-#saveIt
+saveIt
 
 <#
   ================================
