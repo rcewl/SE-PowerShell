@@ -1,21 +1,42 @@
-﻿param (
-    [string]$mapPath = "C:\SpaceEngineers\Worlds\Jupiter\Saves\Map",
-    [string]$steamCMD = "C:\SteamCMD",
-	[string]$SEInstallPath = "C:\SpaceEngineers",
-    [string]$startArgs = @("autosave=10", "autostart", "nowcf"),
-    [switch]$cantStopTheMagic = $false,
-    [string]$backupsPath = "C:\CloudBackups",
-    [int]$serverPort = 27016, #Set to 0 to skip connection test, or to the port your server is running on
+﻿<#
+Server script
+
+just run and it will do
+- backup map files to rar every hour
+- at 6am wil restart server (shutdown,Updateserver,backup,clean,restart)
+- check every 5 minutes if server is running, ifnot (Updateserver,backup,clean,restart)
+
+updating and restart 6am not tested yet looking will need to check logs this weekend
+
+#>
+
+
+param (
+    [string]$mapPath = "$env:APPDATA\SpaceEngineersDedicated",
+    [string]$steamCMD = "C:\SESM-Game-Files\SteamCMD", # you can download steamCMD from steam https://developer.valvesoftware.com/wiki/SteamCMD
+	[string]$SEInstallPath = "C:\SESM-Game-Files", 
+    [string]$startArgs = @("-console"),
+   # old setting that where used for Extender [string]$startArgs = @("autosave=10", "autostart", "nowcf"), 
+    [switch]$cantStopTheMagic = $false, #set to $true if you want to let it run
+    
+	[string]$backupsPath = "$env:APPDATA\SpaceEngineersDedicated\saves\",
+    
+	[int]$serverPort = 27016, #Set to 0 to skip connection test, or to the port your server is running on
     [int64]$memTest = 3221225472, #Set to 0 to skip memtest, or to the value the server proccess can not exceed
     [int]$launchDelay = 240, # Script delay after launch to allow server to come online properly
-    [string]$7zipExe = "C:\Program Files\7-Zip\7z.exe"
+    [string]$Winrar =  "C:\Program Files\WinRAR\rar.exe", #you can use 7-zip if you like, parameters are ok. 7-zip is somewhat slower though.
+    [string]$logfilepath = "$backupsPath", #make sure this path exists
+    [string]$MapInstance ='\Saves\"Gypsy Space Migration"' ,#when using spaces in the packupfile path use extra quotes
+	[boolean]$cleanfile = "$false" #when using the cleaning script, set it true
 )
 
+#filepath checks needed
+#filepath checks needed
 
 if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") {
-    $SESEPath = "$SEInstallPath\DedicatedServer64"
+    $ServerPath = "$SEInstallPath\DedicatedServer64"
 } else {
-    $SESEPath = "$SEInstallPath\DedicatedServer"
+    $ServerPath = "$SEInstallPath\DedicatedServer"
 }
 
 function timeStamp {
@@ -23,16 +44,17 @@ function timeStamp {
 }
 
 function startSE {
-    $ServerActive = Get-Process SEServerExtender -ErrorAction SilentlyContinue
+    $ServerActive = Get-Process spaceengineersdedicated -ErrorAction SilentlyContinue
     if ($ServerActive -eq $null) {
+        CleanSaveFile
 	    Write-Output "$(timeStamp) Starting Server.."
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = "$SESEPath\SeServerExtender.exe"
+        $pinfo.FileName = "$ServerPath\spaceengineersdedicated.exe"
         $pinfo.Arguments = $startArgs
-        $pinfo.WorkingDirectory = $SESEPath
+        $pinfo.WorkingDirectory = $ServerPath
         $p = New-Object System.Diagnostics.Process
         $p.StartInfo = $pinfo
-        $p.Start() | Out-Null
+        $p.Start() #| Out-Null
         #$p.ProcessorAffinity=0x2
         $ProcessID = $p.Id
 	    Write-Output "$(timeStamp) Server process launched, PID: $ProcessID.. Starting Launch Delay."
@@ -44,40 +66,72 @@ function startSE {
 }
 
 function stopSE {
-    $ServerActive = Get-Process SEServerExtender -ErrorAction SilentlyContinue
+   $ServerActive = Get-Process spaceengineersdedicated -ErrorAction SilentlyContinue
     if ($ServerActive -ne $null) {
 	    Write-Output "$(timeStamp) Stopping Server.."
         while ($ServerActive -ne $null) {
-	        Taskkill /IM SeServerExtender.exe
+	        Taskkill /IM spaceengineersdedicated.exe
             Start-Sleep -Seconds 2
-            $ServerActive = Get-Process SEServerExtender -ErrorAction SilentlyContinue
+            $ServerActive = Get-Process spaceengineersdedicated -ErrorAction SilentlyContinue
         }
 	    Write-Output "$(timeStamp) Server stopped.."
     } else {
 	    Write-Output "$(timeStamp) Server is already stopped.."
-    }        
+    }         
 }
+
 
 function updateSE {
-	Write-Output "$(timeStamp) Updating Server.."
-    $updateArgs = @("+login anonymous", "+force_install_dir $SEInstallPath", "+app_update 298740", "+quit")
-    Start-Process -FilePath "$steamCMD\steamcmd.exe" -WorkingDirectory $steamCMD -ArgumentList $updateArgs -Wait
-}
-
-function backupSE {
-    if ($($args[0]) -eq "daily") {
-        Write-Output "$(timeStamp) Server performing daily backup.."
-        Start-Process -FilePath $7zipExe -ArgumentList @("a", "$backupsPath\Daily-$(Get-Date -f yyyy-MM-dd).7z", $mapPath) -RedirectStandardOutput "$backupsPath\Latest7zip.log" -NoNewWindow -Wait
-    } else {
-        Write-Output "$(timeStamp) Server performing snapshot backup.."
-        Start-Process -FilePath $7zipExe -ArgumentList @("a", "$backupsPath\$(Get-Date -f yyyy-MM-dd@HHmmss).7z", $mapPath) -RedirectStandardOutput "$backupsPath\Latest7zip.log" -NoNewWindow -Wait
+ $computer = gc env:computername
+    if ($computer -eq "SFP-SPEN"){ #a check if the script is running on server, if not it does not update and persumes it s ran locally
+	    Write-Output "$(timeStamp) Updating Server.."
+        $updateArgs = @("+login anonymous", "+force_install_dir $SEInstallPath", "+app_update 298740", "+quit")
+        Start-Process -FilePath "$steamCMD\steamcmd.exe" -WorkingDirectory $steamCMD -ArgumentList $updateArgs -Wait
+    }else{
+        Write-Output "$(timeStamp) Updating Server not needed locally.."
     }
 }
 
+function backupSE {
+    $MaptoZip = "$mapPath" + "$MapInstance" 
+    if ($($args[0]) -eq "daily") {
+        Write-Output "$(timeStamp) Server performing daily backup.."
+        Start-Process -FilePath $Winrar -ArgumentList @("a", "$backupsPath\GSM_Daily_$(Get-Date -f yyyy-MM-dd).rar", "$MaptoZip") -RedirectStandardOutput "$backupsPath\LatestDailyRar.log" -NoNewWindow -Wait
+    } else {
+        Write-Output "$(timeStamp) Server performing snapshot backup.."
+        Start-Process -FilePath $Winrar -ArgumentList @("a", "$backupsPath\GSM_$(Get-Date -f yyyy-MM-dd@HHmmss).rar", "$MaptoZip") -RedirectStandardOutput "$backupsPath\LatestRar.log" -NoNewWindow -Wait
+    }
+}
+
+function CleanSaveFile {
+    if ($cleanfile){
+		$ServerCleaning = $true
+		While ($ServerCleaning) {
+			$ServerActive = Get-Process spaceengineersdedicated -ErrorAction SilentlyContinue
+			if ($ServerActive -ne $null){ #server needs to be down to correctly clean save file.
+				stopSE
+				Start-Sleep -Seconds 10
+			}else{
+				Write-Output "$(timeStamp) Server cleaning savefile.."
+				$logfilename = "GSM_Clean_$(Get-Date -f yyyy-MM-dd@HHmmss).log"
+				$logfile = "$logfilepath\$logfilename"
+#path and file check needed here
+				& ((Split-Path $MyInvocation.PSCommandPath) + "\cleanSavefile.ps1") | Out-file -encoding utf8 $logfile
+				Write-Output "$(timeStamp) Server cleaned .."
+				$ServerCleaning = $false
+			} 
+		}
+	}else{
+		Write-Output "$(timeStamp) Server cleaning not active in script.."
+	}
+}
+
 $count = 0
+Clear-Host
 while ($cantStopTheMagic) {
-    $ServerActive = Get-Process SEServerExtender -ErrorAction SilentlyContinue
+    $ServerActive = Get-Process spaceengineersdedicated -ErrorAction SilentlyContinue
     if($ServerActive -eq $null) {
+        Write-Output "$(timeStamp) Server not running.."
         updateSE
         startSE
     } else {
@@ -138,9 +192,11 @@ while ($cantStopTheMagic) {
         }
     }
     $count++
-    if ($count -eq 6) { # Snapshot every 30 mins
+    if ($count -eq 12) { # Snapshot every 60 mins
         backupSE
         $count = 0
     }
     Start-Sleep -Seconds 300 #Wait 5 minutes
 }
+
+Write-Output "Script ended"
